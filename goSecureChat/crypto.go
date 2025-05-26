@@ -3,7 +3,6 @@ package goSecureChat
 import (
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/hmac"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -44,7 +43,7 @@ func decryptSessionKey(priv *rsa.PrivateKey, encryptedKey []byte) []byte {
 	return sessionKey
 }
 
-func encryptMessage(sessionKey []byte, plaintext string) (ciphertext, nonce, hmacSig []byte) {
+func encryptMessage(sessionKey []byte, plaintext string) (ciphertext, nonce []byte) {
 	block, err := aes.NewCipher(sessionKey)
 	if err != nil {
 		log.Fatal(err)
@@ -63,22 +62,10 @@ func encryptMessage(sessionKey []byte, plaintext string) (ciphertext, nonce, hma
 
 	ciphertext = aesgcm.Seal(nil, nonce, []byte(plaintext), nil)
 
-	mac := hmac.New(sha256.New, sessionKey)
-	mac.Write(ciphertext)
-	hmacSig = mac.Sum(nil)
-
-	return ciphertext, nonce, hmacSig
+	return ciphertext, nonce
 }
 
-func decryptMessage(sessionKey, ciphertext, nonce, hmacSig []byte) string {
-	mac := hmac.New(sha256.New, sessionKey)
-	mac.Write(ciphertext)
-	expectedMAC := mac.Sum(nil)
-
-	if !hmac.Equal(expectedMAC, hmacSig) {
-		log.Fatal("❌ HMAC invalide – message altéré")
-	}
-
+func decryptMessage(sessionKey, ciphertext, nonce []byte) string {
 	block, err := aes.NewCipher(sessionKey)
 	if err != nil {
 		log.Fatal(err)
@@ -91,7 +78,7 @@ func decryptMessage(sessionKey, ciphertext, nonce, hmacSig []byte) string {
 
 	plaintext, err := aesgcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("❌ Déchiffrement échoué – message altéré ou corrompu")
 	}
 
 	return string(plaintext)
