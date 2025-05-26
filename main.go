@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"goSecureChat"
+	"gsc/goSecureChat"
 	"os"
 )
 
