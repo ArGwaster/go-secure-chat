@@ -30,22 +30,43 @@ func ServerMode() {
 	reader := bufio.NewReader(conn)
 	writer := bufio.NewWriter(conn)
 
+	// 1. Envoyer la clé publique via JSON
 	pubBytes, err := x509.MarshalPKIXPublicKey(pub)
 	if err != nil {
 		log.Fatal(err)
 	}
-	writer.WriteString(base64.StdEncoding.EncodeToString(pubBytes) + "\n")
+	pubB64 := base64.StdEncoding.EncodeToString(pubBytes)
+
+	handshakeMsg, err := createHandshakeMessage(pubB64)
+	if err != nil {
+		log.Fatal(err)
+	}
+	writer.WriteString(string(handshakeMsg) + "\n")
 	writer.Flush()
 
-	encKeyB64, err := reader.ReadString('\n')
+	// 2. Recevoir la clé de session chiffrée via JSON
+	jsonLine, err := reader.ReadString('\n')
 	if err != nil {
-		log.Fatal("Erreur lecture clé AES chiffrée :", err)
+		log.Fatal("Erreur lecture message JSON :", err)
 	}
-	encKey, _ := base64.StdEncoding.DecodeString(strings.TrimSpace(encKeyB64))
+
+	msg, err := parseProtocolMessage([]byte(strings.TrimSpace(jsonLine)))
+	if err != nil {
+		log.Fatal("Erreur parsing JSON :", err)
+	}
+
+	if msg.Type != TypeSessionKey {
+		log.Fatal("Type de message inattendu :", msg.Type)
+	}
+
+	encKey, err := base64.StdEncoding.DecodeString(msg.Data)
+	if err != nil {
+		log.Fatal("Erreur décodage clé de session :", err)
+	}
 
 	sessionKey := decryptSessionKey(priv, encKey)
 	fmt.Println("🔐 Session sécurisée établie.")
 
-	go readLoop(reader, sessionKey)
-	writeLoop(writer, sessionKey)
+	go readLoopJSON(reader, sessionKey)
+	writeLoopJSON(writer, sessionKey)
 }

@@ -9,19 +9,35 @@ import (
 	"strings"
 )
 
-func readLoop(reader *bufio.Reader, sessionKey []byte) {
+func readLoopJSON(reader *bufio.Reader, sessionKey []byte) {
 	for {
-		nonceB64, err := reader.ReadString('\n')
+		jsonLine, err := reader.ReadString('\n')
 		if err != nil {
-			log.Fatal("Erreur lecture nonce :", err)
-		}
-		ctB64, err := reader.ReadString('\n')
-		if err != nil {
-			log.Fatal("Erreur lecture ciphertext :", err)
+			log.Fatal("Erreur lecture message JSON :", err)
 		}
 
-		nonce, _ := base64.StdEncoding.DecodeString(strings.TrimSpace(nonceB64))
-		ct, _ := base64.StdEncoding.DecodeString(strings.TrimSpace(ctB64))
+		encMsg, err := parseEncryptedMessage([]byte(strings.TrimSpace(jsonLine)))
+		if err != nil {
+			fmt.Println("❌ Erreur parsing message :", err)
+			continue
+		}
+
+		if encMsg.Type != TypeMessage {
+			fmt.Printf("⚠️ Type de message inattendu : %s\n", encMsg.Type)
+			continue
+		}
+
+		nonce, err := base64.StdEncoding.DecodeString(encMsg.Nonce)
+		if err != nil {
+			fmt.Println("❌ Erreur décodage nonce :", err)
+			continue
+		}
+
+		ct, err := base64.StdEncoding.DecodeString(encMsg.Ciphertext)
+		if err != nil {
+			fmt.Println("❌ Erreur décodage ciphertext :", err)
+			continue
+		}
 
 		msg := decryptMessage(sessionKey, ct, nonce)
 		fmt.Println("\n📩 Reçu :", msg)
@@ -29,7 +45,7 @@ func readLoop(reader *bufio.Reader, sessionKey []byte) {
 	}
 }
 
-func writeLoop(writer *bufio.Writer, sessionKey []byte) {
+func writeLoopJSON(writer *bufio.Writer, sessionKey []byte) {
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
 		fmt.Print("→ ")
@@ -37,8 +53,16 @@ func writeLoop(writer *bufio.Writer, sessionKey []byte) {
 		msg := scanner.Text()
 
 		ct, nonce := encryptMessage(sessionKey, msg)
-		writer.WriteString(base64.StdEncoding.EncodeToString(nonce) + "\n")
-		writer.WriteString(base64.StdEncoding.EncodeToString(ct) + "\n")
+		ctB64 := base64.StdEncoding.EncodeToString(ct)
+		nonceB64 := base64.StdEncoding.EncodeToString(nonce)
+
+		encMsg, err := createEncryptedMessage(ctB64, nonceB64)
+		if err != nil {
+			fmt.Println("❌ Erreur création message :", err)
+			continue
+		}
+
+		writer.WriteString(string(encMsg) + "\n")
 		writer.Flush()
 	}
 }
