@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 )
 
 func readLoopJSON(reader *bufio.Reader, sessionKey []byte) {
@@ -40,7 +41,8 @@ func readLoopJSON(reader *bufio.Reader, sessionKey []byte) {
 		}
 
 		msg := decryptMessage(sessionKey, ct, nonce)
-		fmt.Println("\n📩 Reçu :", msg)
+		timestamp := time.Now().Format("15:04:05 02/01/2006")
+		fmt.Printf("\n[%s] %s\n", timestamp, msg)
 		fmt.Print("→ ")
 	}
 }
@@ -64,5 +66,9 @@ func writeLoopJSON(writer *bufio.Writer, sessionKey []byte) {
 
 		writer.WriteString(string(encMsg) + "\n")
 		writer.Flush()
+
+		// Afficher le message envoyé avec horodatage
+		timestamp := time.Now().Format("15:04:05 02/01/2006")
+		fmt.Printf("[%s] Vous: %s\n", timestamp, msg)
 	}
 }
